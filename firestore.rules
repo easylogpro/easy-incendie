@@ -1,0 +1,359 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ============================================
+    // FONCTIONS UTILITAIRES
+    // ============================================
+    
+    // Vérifier si l'utilisateur est authentifié
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Récupérer les données utilisateur
+    function getUserData() {
+      return get(/databases/$(database)/documents/organizations/$(getOrgId())/users/$(request.auth.uid)).data;
+    }
+    
+    // Récupérer l'ID organisation depuis le chemin
+    function getOrgId() {
+      return resource.__name__.split('/')[6]; // organizations/{orgId}/...
+    }
+    
+    // Récupérer l'ID organisation depuis la requête (pour création)
+    function getOrgIdFromRequest() {
+      return request.resource.__name__.split('/')[6];
+    }
+    
+    // Vérifier si l'utilisateur appartient à cette organisation
+    function isOrgMember(orgId) {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/organizations/$(orgId)/users/$(request.auth.uid));
+    }
+    
+    // Vérifier le rôle de l'utilisateur
+    function hasRole(orgId, roles) {
+      return isOrgMember(orgId) && 
+        get(/databases/$(database)/documents/organizations/$(orgId)/users/$(request.auth.uid)).data.role in roles;
+    }
+    
+    // Raccourcis rôles
+    function isAdmin(orgId) {
+      return hasRole(orgId, ['admin']);
+    }
+    
+    function isAdminOrGestionnaire(orgId) {
+      return hasRole(orgId, ['admin', 'gestionnaire']);
+    }
+    
+    function isTechnicien(orgId) {
+      return hasRole(orgId, ['admin', 'gestionnaire', 'technicien']);
+    }
+    
+    function isSTT(orgId) {
+      return hasRole(orgId, ['stt']);
+    }
+    
+    function isClientPayeur(orgId) {
+      return hasRole(orgId, ['client_payeur']);
+    }
+    
+    function isClientFinal(orgId) {
+      return hasRole(orgId, ['client_final']);
+    }
+    
+    // Vérifier si STT a accès au lot
+    function sttHasAccessToLot(orgId, lotId) {
+      return isSTT(orgId) && 
+        lotId in get(/databases/$(database)/documents/organizations/$(orgId)/users/$(request.auth.uid)).data.lots_autorises;
+    }
+    
+    // Vérifier si c'est le technicien assigné
+    function isAssignedTechnicien(orgId) {
+      let userData = get(/databases/$(database)/documents/organizations/$(orgId)/users/$(request.auth.uid)).data;
+      return resource.data.technicien_id == userData.technicien_id;
+    }
+    
+    // Vérifier si c'est le STT assigné
+    function isAssignedSTT(orgId) {
+      let userData = get(/databases/$(database)/documents/organizations/$(orgId)/users/$(request.auth.uid)).data;
+      return resource.data.stt_id == userData.stt_id;
+    }
+    
+    
+    // ============================================
+    // RÈGLES PAR COLLECTION
+    // ============================================
+    
+    // --------------------------------------------
+    // ORGANIZATIONS (niveau racine)
+    // --------------------------------------------
+    match /organizations/{orgId} {
+      // Personne ne peut lire/écrire directement sur le document organization
+      // Tout passe par les sous-collections
+      allow read, write: if false;
+      
+      // --------------------------------------------
+      // SETTINGS (configuration organisation)
+      // --------------------------------------------
+      match /settings/{document=**} {
+        // Lecture : tous les membres de l'organisation
+        allow read: if isOrgMember(orgId);
+        
+        // Écriture : admin uniquement
+        allow write: if isAdmin(orgId);
+      }
+      
+      // --------------------------------------------
+      // USERS (utilisateurs)
+      // --------------------------------------------
+      match /users/{userId} {
+        // Lecture : tous les membres peuvent voir les utilisateurs de leur org
+        allow read: if isOrgMember(orgId);
+        
+        // Création : admin uniquement
+        allow create: if isAdmin(orgId);
+        
+        // Mise à jour : admin OU l'utilisateur lui-même (pour son profil)
+        allow update: if isAdmin(orgId) || request.auth.uid == userId;
+        
+        // Suppression : admin uniquement
+        allow delete: if isAdmin(orgId);
+      }
+      
+      // --------------------------------------------
+      // CLIENTS PAYEURS
+      // --------------------------------------------
+      match /clients_payeurs/{clientId} {
+        // Lecture : tous les membres internes
+        allow read: if hasRole(orgId, ['admin', 'gestionnaire', 'technicien']) ||
+          // Client payeur peut voir sa propre fiche
+          (isClientPayeur(orgId) && 
+           get(/databases/$(database)/documents/organizations/$(orgId)/users/$(request.auth.uid)).data.client_payeur_id == clientId);
+        
+        // Écriture : admin et gestionnaire
+        allow write: if isAdminOrGestionnaire(orgId);
+      }
+      
+      // --------------------------------------------
+      // SITES (clients finaux)
+      // --------------------------------------------
+      match /sites/{siteId} {
+        // Lecture : membres internes + STT (si lot autorisé) + client payeur lié
+        allow read: if hasRole(orgId, ['admin', 'gestionnaire', 'technicien']) ||
+          // STT voit les sites de ses lots
+          (isSTT(orgId) && resource.data.lots_actifs.hasAny(
+            get(/databases/$(database)/documents/organizations/$(orgId)/users/$(request.auth.uid)).data.lots_autorises
+          )) ||
+          // Client payeur voit ses sites
+          (isClientPayeur(orgId) && 
+           resource.data.client_payeur_id == 
+           get(/databases/$(database)/documents/organizations/$(orgId)/users/$(request.auth.uid)).data.client_payeur_id);
+        
+        // Écriture : admin et gestionnaire
+        allow write: if isAdminOrGestionnaire(orgId);
+      }
+      
+      // --------------------------------------------
+      // TECHNICIENS
+      // --------------------------------------------
+      match /techniciens/{techId} {
+        // Lecture : tous les membres internes
+        allow read: if hasRole(orgId, ['admin', 'gestionnaire', 'technicien']);
+        
+        // Écriture : admin uniquement
+        allow write: if isAdmin(orgId);
+      }
+      
+      // --------------------------------------------
+      // STT (sous-traitants)
+      // --------------------------------------------
+      match /stt/{sttId} {
+        // Lecture : admin, gestionnaire + le STT lui-même
+        allow read: if isAdminOrGestionnaire(orgId) ||
+          (isSTT(orgId) && 
+           get(/databases/$(database)/documents/organizations/$(orgId)/users/$(request.auth.uid)).data.stt_id == sttId);
+        
+        // Écriture : admin uniquement
+        allow write: if isAdmin(orgId);
+      }
+      
+      // --------------------------------------------
+      // MATERIEL (référentiel)
+      // --------------------------------------------
+      match /materiel/{materielId} {
+        // Lecture : tous les membres (pour auto-complétion devis/rapports)
+        allow read: if isOrgMember(orgId);
+        
+        // Écriture : admin et gestionnaire
+        allow write: if isAdminOrGestionnaire(orgId);
+      }
+      
+      // --------------------------------------------
+      // MATERIEL INSTALLE (équipements sur sites)
+      // --------------------------------------------
+      match /materiel_installe/{equipId} {
+        // Lecture : membres internes + STT (si lot autorisé) + client payeur lié
+        allow read: if hasRole(orgId, ['admin', 'gestionnaire', 'technicien']) ||
+          isSTT(orgId) || isClientPayeur(orgId);
+        
+        // Écriture : admin, gestionnaire, technicien
+        allow write: if hasRole(orgId, ['admin', 'gestionnaire', 'technicien']);
+      }
+      
+      // --------------------------------------------
+      // INTERVENTIONS
+      // --------------------------------------------
+      match /interventions/{interventionId} {
+        // Lecture : membres internes + STT assigné + client payeur lié
+        allow read: if hasRole(orgId, ['admin', 'gestionnaire', 'technicien']) ||
+          // STT voit ses interventions assignées
+          (isSTT(orgId) && isAssignedSTT(orgId)) ||
+          // Client payeur voit les interventions sur ses sites
+          isClientPayeur(orgId);
+        
+        // Création : admin, gestionnaire
+        allow create: if isAdminOrGestionnaire(orgId);
+        
+        // Mise à jour : admin, gestionnaire, technicien assigné, STT assigné
+        allow update: if isAdminOrGestionnaire(orgId) ||
+          (isTechnicien(orgId) && isAssignedTechnicien(orgId)) ||
+          (isSTT(orgId) && isAssignedSTT(orgId));
+        
+        // Suppression : admin uniquement
+        allow delete: if isAdmin(orgId);
+      }
+      
+      // --------------------------------------------
+      // RAPPORTS
+      // --------------------------------------------
+      match /rapports/{rapportId} {
+        // Lecture : membres internes + STT (ses rapports) + client payeur
+        allow read: if hasRole(orgId, ['admin', 'gestionnaire', 'technicien']) ||
+          (isSTT(orgId) && resource.data.stt.id == 
+           get(/databases/$(database)/documents/organizations/$(orgId)/users/$(request.auth.uid)).data.stt_id) ||
+          isClientPayeur(orgId);
+        
+        // Création : admin, gestionnaire, technicien, STT
+        allow create: if hasRole(orgId, ['admin', 'gestionnaire', 'technicien']) || isSTT(orgId);
+        
+        // Mise à jour : admin, gestionnaire, créateur du rapport (si brouillon)
+        allow update: if isAdminOrGestionnaire(orgId) ||
+          (resource.data.statut == 'brouillon' && resource.data.created_by == request.auth.uid);
+        
+        // Suppression : admin uniquement, et seulement si brouillon
+        allow delete: if isAdmin(orgId) && resource.data.statut == 'brouillon';
+      }
+      
+      // --------------------------------------------
+      // DEVIS
+      // --------------------------------------------
+      match /devis/{devisId} {
+        // Lecture : admin, gestionnaire + client payeur lié
+        allow read: if isAdminOrGestionnaire(orgId) ||
+          (isClientPayeur(orgId) && 
+           resource.data.client_payeur_id == 
+           get(/databases/$(database)/documents/organizations/$(orgId)/users/$(request.auth.uid)).data.client_payeur_id);
+        
+        // Création : admin, gestionnaire
+        allow create: if isAdminOrGestionnaire(orgId);
+        
+        // Mise à jour : admin, gestionnaire
+        // Exception : client payeur peut mettre à jour pour signature
+        allow update: if isAdminOrGestionnaire(orgId) ||
+          (isClientPayeur(orgId) && 
+           resource.data.client_payeur_id == 
+           get(/databases/$(database)/documents/organizations/$(orgId)/users/$(request.auth.uid)).data.client_payeur_id &&
+           // Le client ne peut modifier que la signature
+           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['signature_client', 'statut', 'date_reponse', 'updated_at']));
+        
+        // Suppression : admin uniquement, et seulement si brouillon
+        allow delete: if isAdmin(orgId) && resource.data.statut == 'brouillon';
+      }
+      
+      // --------------------------------------------
+      // FACTURES
+      // --------------------------------------------
+      match /factures/{factureId} {
+        // Lecture : admin, gestionnaire + client payeur lié
+        allow read: if isAdminOrGestionnaire(orgId) ||
+          (isClientPayeur(orgId) && 
+           resource.data.client_payeur_id == 
+           get(/databases/$(database)/documents/organizations/$(orgId)/users/$(request.auth.uid)).data.client_payeur_id);
+        
+        // Écriture : admin, gestionnaire uniquement
+        allow write: if isAdminOrGestionnaire(orgId);
+      }
+      
+      // --------------------------------------------
+      // CONTRATS
+      // --------------------------------------------
+      match /contrats/{contratId} {
+        // Lecture : admin, gestionnaire + client payeur lié
+        allow read: if isAdminOrGestionnaire(orgId) ||
+          (isClientPayeur(orgId) && 
+           resource.data.client_payeur_id == 
+           get(/databases/$(database)/documents/organizations/$(orgId)/users/$(request.auth.uid)).data.client_payeur_id);
+        
+        // Écriture : admin, gestionnaire
+        allow write: if isAdminOrGestionnaire(orgId);
+      }
+      
+      // --------------------------------------------
+      // ALERTES
+      // --------------------------------------------
+      match /alertes/{alerteId} {
+        // Lecture : membres internes + client payeur (ses alertes)
+        allow read: if hasRole(orgId, ['admin', 'gestionnaire', 'technicien']) ||
+          (isClientPayeur(orgId) && 
+           resource.data.client_payeur_id == 
+           get(/databases/$(database)/documents/organizations/$(orgId)/users/$(request.auth.uid)).data.client_payeur_id);
+        
+        // Création : système uniquement (via Cloud Functions) ou admin
+        allow create: if isAdmin(orgId);
+        
+        // Mise à jour : admin, gestionnaire (pour traiter l'alerte)
+        allow update: if isAdminOrGestionnaire(orgId);
+        
+        // Suppression : admin uniquement
+        allow delete: if isAdmin(orgId);
+      }
+      
+      // --------------------------------------------
+      // COUNTERS (numérotation)
+      // --------------------------------------------
+      match /counters/{counterId} {
+        // Lecture : tous les membres
+        allow read: if isOrgMember(orgId);
+        
+        // Écriture : admin, gestionnaire, technicien (pour incrémenter)
+        allow write: if hasRole(orgId, ['admin', 'gestionnaire', 'technicien']);
+      }
+      
+      // --------------------------------------------
+      // AUDIT LOG (historique)
+      // --------------------------------------------
+      match /audit_log/{logId} {
+        // Lecture : admin uniquement
+        allow read: if isAdmin(orgId);
+        
+        // Création : tous les membres authentifiés (log automatique)
+        allow create: if isOrgMember(orgId);
+        
+        // Mise à jour et suppression : JAMAIS (audit-proof)
+        allow update, delete: if false;
+      }
+    }
+    
+    
+    // ============================================
+    // COLLECTIONS GLOBALES (hors organisations)
+    // ============================================
+    
+    // Bloquer tout accès aux documents non prévus
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
