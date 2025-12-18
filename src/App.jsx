@@ -2,13 +2,20 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import LandingPage from './pages/LandingPage';
+
+// Pages publiques
+import ConfigurateurEasyLog from './pages/ConfigurateurEasyLog';
+
+// Pages protégées
 import DashboardPage from './pages/DashboardPage';
 import ClientsPage from './pages/ClientsPage';
 import SettingsPage from './pages/SettingsPage';
+
+// Layouts & Composants
 import MainLayout from './layouts/MainLayout';
 import UpdateBanner from './components/UpdateBanner';
 import AnnouncementBanner from './components/AnnouncementBanner';
+
 import './styles/index.css';
 
 const ProtectedRoute = ({ children }) => {
@@ -26,20 +33,27 @@ const PublicRoute = ({ children }) => {
 };
 
 const PlaceholderPage = ({ title }) => (
-  <div className="flex items-center justify-center h-96"><div className="text-center"><h2 className="text-2xl font-bold text-gray-900 mb-2">{title}</h2><p className="text-gray-500">En cours de développement</p></div></div>
+  <div className="flex items-center justify-center h-96">
+    <div className="text-center">
+      <h2 className="text-2xl font-bold text-gray-900 mb-2">{title}</h2>
+      <p className="text-gray-500">En cours de développement</p>
+    </div>
+  </div>
 );
 
 function App() {
   return (
     <AuthProvider>
-      {/* Bandeaux globaux - visibles partout */}
       <UpdateBanner />
       <AnnouncementBanner />
       
       <Router>
         <Routes>
-          <Route path="/" element={<PublicRoute><LandingPage /></PublicRoute>} />
-          <Route path="/login" element={<PublicRoute><LandingPage /></PublicRoute>} />
+          {/* Page d'accueil = Configurateur commercial */}
+          <Route path="/" element={<PublicRoute><ConfigurateurEasyLog /></PublicRoute>} />
+          <Route path="/login" element={<PublicRoute><ConfigurateurEasyLog /></PublicRoute>} />
+          
+          {/* Routes protégées */}
           <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/planning" element={<PlaceholderPage title="Planning" />} />
@@ -53,6 +67,7 @@ function App() {
             <Route path="/export-comptable" element={<PlaceholderPage title="Export Comptable" />} />
             <Route path="/donnees-client" element={<PlaceholderPage title="Données Client" />} />
           </Route>
+          
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Router>
