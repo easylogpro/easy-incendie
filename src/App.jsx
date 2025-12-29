@@ -1,11 +1,11 @@
 // src/App.jsx
-// Easy Renov - Application principale
+// Easy Sécurité (Incendie) - Application principale
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 // Pages publiques
-import ConfigurateurEasyRenov from './pages/ConfigurateurEasyRenov';
+import LandingPage from './pages/LandingPage';
 
 // Pages protégées
 import DashboardPage from './pages/DashboardPage';
@@ -27,7 +27,7 @@ const ProtectedRoute = ({ children }) => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-950">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-16 h-16 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+          <div className="w-16 h-16 border-4 border-red-500 border-t-transparent rounded-full animate-spin" />
           <p className="text-white/50 font-medium">Chargement...</p>
         </div>
       </div>
@@ -49,7 +49,7 @@ const PublicRoute = ({ children }) => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-950">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-16 h-16 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+          <div className="w-16 h-16 border-4 border-red-500 border-t-transparent rounded-full animate-spin" />
           <p className="text-white/50 font-medium">Chargement...</p>
         </div>
       </div>
@@ -70,8 +70,8 @@ const PlaceholderPage = ({ title, icon: Icon }) => (
       {Icon && <Icon className="w-16 h-16 text-slate-300 mx-auto mb-4" />}
       <h2 className="text-2xl font-bold text-gray-900 mb-2">{title}</h2>
       <p className="text-gray-500">Module en cours de développement</p>
-      <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-emerald-100 text-emerald-700 rounded-full text-sm font-medium">
-        <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+      <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-red-100 text-red-700 rounded-full text-sm font-medium">
+        <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
         Bientôt disponible
       </div>
     </div>
@@ -91,12 +91,12 @@ function App() {
               ROUTES PUBLIQUES
               ═══════════════════════════════════════════════════════════ */}
           
-          {/* Page d'accueil = Configurateur commercial Easy Renov */}
+          {/* Page d'accueil = Landing Easy Sécurité */}
           <Route 
             path="/" 
             element={
               <PublicRoute>
-                <ConfigurateurEasyRenov />
+                <LandingPage />
               </PublicRoute>
             } 
           />
@@ -106,7 +106,17 @@ function App() {
             path="/login" 
             element={
               <PublicRoute>
-                <ConfigurateurEasyRenov />
+                <LandingPage />
+              </PublicRoute>
+            } 
+          />
+
+          {/* Alias pour /register */}
+          <Route 
+            path="/register" 
+            element={
+              <PublicRoute>
+                <LandingPage />
               </PublicRoute>
             } 
           />
@@ -138,14 +148,20 @@ function App() {
             <Route path="/devis" element={<PlaceholderPage title="Devis" />} />
             <Route path="/factures" element={<PlaceholderPage title="Factures" />} />
             
-            {/* Rapports */}
+            {/* Rapports - Modules spécifiques Easy Sécurité */}
             <Route path="/rapports" element={<PlaceholderPage title="Rapports" />} />
+            <Route path="/rapports-ssi" element={<PlaceholderPage title="Rapports SSI" />} />
+            <Route path="/rapports-dsf" element={<PlaceholderPage title="Rapports DSF" />} />
+            <Route path="/rapports-extincteurs" element={<PlaceholderPage title="Rapports Extincteurs" />} />
+            <Route path="/rapports-baes" element={<PlaceholderPage title="Rapports BAES" />} />
+            <Route path="/rapports-ria" element={<PlaceholderPage title="Rapports RIA" />} />
+            <Route path="/rapports-colonnes-seches" element={<PlaceholderPage title="Rapports Colonnes Sèches" />} />
             
-            {/* Modules spécifiques Easy Renov */}
-            <Route path="/simulateur-primes" element={<PlaceholderPage title="Simulateur Primes CEE / MaPrimeRénov" />} />
-            <Route path="/veille-reglementaire" element={<PlaceholderPage title="Veille Réglementaire" />} />
+            {/* Registre sécurité */}
+            <Route path="/registre-securite" element={<PlaceholderPage title="Registre Sécurité" />} />
             
             {/* Administration */}
+            <Route path="/techniciens" element={<PlaceholderPage title="Techniciens" />} />
             <Route path="/utilisateurs" element={<PlaceholderPage title="Utilisateurs" />} />
             <Route path="/settings" element={<SettingsPage />} />
             
