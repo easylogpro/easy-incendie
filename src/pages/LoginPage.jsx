@@ -1,236 +1,293 @@
 // src/pages/LoginPage.jsx
-// Page de connexion Premium - Design Éblouissant
-
+// Easy Sécurité - Page de connexion
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Mail, Lock, Zap, ArrowRight, Loader2 } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { useNavigate, Link } from 'react-router-dom';
+import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
+import { auth } from '../config/firebase';
+import { 
+  Flame, Mail, Lock, Eye, EyeOff, AlertCircle, Loader2, CheckCircle2
+} from 'lucide-react';
 
 const LoginPage = () => {
   const navigate = useNavigate();
-  const { login } = useAuth();
-  
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  
+  const [formData, setFormData] = useState({
+    email: '',
+    password: ''
+  });
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
     setError('');
+    setSuccess('');
+  };
+
+  // Connexion
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    
+    if (!formData.email || !formData.password) {
+      setError('Veuillez remplir tous les champs');
+      return;
+    }
+
     setLoading(true);
+    setError('');
 
     try {
-      await login(email, password);
+      await signInWithEmailAndPassword(auth, formData.email, formData.password);
       navigate('/dashboard');
     } catch (err) {
-      setError(err.message || 'Erreur de connexion');
+      console.error('Erreur connexion:', err);
+      
+      // Messages d'erreur Firebase traduits
+      if (err.code === 'auth/user-not-found') {
+        setError('Aucun compte trouvé avec cet email');
+      } else if (err.code === 'auth/wrong-password') {
+        setError('Mot de passe incorrect');
+      } else if (err.code === 'auth/invalid-email') {
+        setError('Email invalide');
+      } else if (err.code === 'auth/too-many-requests') {
+        setError('Trop de tentatives. Réessayez plus tard.');
+      } else if (err.code === 'auth/invalid-credential') {
+        setError('Email ou mot de passe incorrect');
+      } else {
+        setError('Erreur de connexion. Vérifiez vos identifiants.');
+      }
     } finally {
       setLoading(false);
     }
   };
 
+  // Mot de passe oublié
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+    
+    if (!formData.email) {
+      setError('Veuillez entrer votre email');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      await sendPasswordResetEmail(auth, formData.email);
+      setSuccess('Email de réinitialisation envoyé ! Vérifiez votre boîte mail.');
+      setShowForgotPassword(false);
+    } catch (err) {
+      console.error('Erreur reset:', err);
+      if (err.code === 'auth/user-not-found') {
+        setError('Aucun compte trouvé avec cet email');
+      } else {
+        setError('Erreur lors de l\'envoi. Réessayez.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Logo animé
+  const AnimatedLogo = () => (
+    <div className="flex items-center gap-2">
+      <div className="relative">
+        <div className="w-12 h-12 bg-gradient-to-br from-red-500 via-orange-500 to-yellow-500 rounded-xl flex items-center justify-center shadow-lg shadow-red-500/30">
+          <span className="text-white font-black text-xl">E</span>
+          <span className="text-white font-black text-xl animate-pulse">S</span>
+        </div>
+        <div className="absolute -top-2 -right-2">
+          <Flame className="w-6 h-6 text-orange-500 animate-bounce" style={{ animationDuration: '1s' }} />
+        </div>
+      </div>
+      <div>
+        <span className="text-2xl font-black text-white">Easy</span>
+        <span className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-red-400 via-orange-400 to-yellow-400"> Sécurité</span>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="min-h-screen flex">
-      {/* Left Side - Branding */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700 p-12 flex-col justify-between relative overflow-hidden">
-        {/* Cercles décoratifs */}
-        <div className="absolute top-0 left-0 w-96 h-96 bg-white/10 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2" />
-        <div className="absolute bottom-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl translate-x-1/2 translate-y-1/2" />
-        <div className="absolute top-1/2 left-1/2 w-64 h-64 bg-white/5 rounded-full blur-2xl -translate-x-1/2 -translate-y-1/2" />
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-900 to-black flex">
+      {/* Colonne gauche - Branding */}
+      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
+        {/* Background effects */}
+        <div className="absolute inset-0 bg-gradient-to-br from-red-900/30 via-transparent to-orange-900/30" />
+        <div className="absolute top-20 left-10 w-72 h-72 bg-red-500/20 rounded-full blur-3xl animate-pulse" />
+        <div className="absolute bottom-20 right-10 w-96 h-96 bg-orange-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
         
-        {/* Logo */}
-        <div className="relative">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center">
-              <Zap className="w-7 h-7 text-white" />
-            </div>
-            <span className="text-2xl font-bold text-white">EasyLog Pro</span>
-          </div>
-        </div>
-
-        {/* Message principal */}
-        <div className="relative space-y-6">
-          <h1 className="text-5xl font-bold text-white leading-tight">
-            Gérez votre activité<br />
-            <span className="text-blue-200">en toute simplicité</span>
+        <div className="relative z-10 flex flex-col justify-center px-12">
+          <AnimatedLogo />
+          
+          <h1 className="text-4xl font-bold text-white mt-12 mb-4">
+            Bon retour sur <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-400 to-orange-400">Easy Sécurité</span>
           </h1>
-          <p className="text-xl text-blue-100 max-w-md">
-            Solution complète de gestion pour les entreprises d'énergie, chauffage, incendie et isolation.
+          
+          <p className="text-gray-400 text-lg mb-8">
+            Connectez-vous pour accéder à votre espace de gestion et retrouver tous vos clients, sites et interventions.
           </p>
-
-          {/* Features */}
-          <div className="flex gap-4 pt-4">
-            {['Multi-tenant', 'Temps réel', 'Mode hors-ligne'].map((feature, i) => (
-              <div 
-                key={i}
-                className="px-4 py-2 bg-white/10 backdrop-blur rounded-full text-white text-sm font-medium"
-              >
-                {feature}
-              </div>
-            ))}
+          
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 text-gray-300">
+              <CheckCircle2 className="w-5 h-5 text-green-400" />
+              <span>Rapports SSI, DSF, BAES, Extincteurs</span>
+            </div>
+            <div className="flex items-center gap-3 text-gray-300">
+              <CheckCircle2 className="w-5 h-5 text-green-400" />
+              <span>Planning et interventions</span>
+            </div>
+            <div className="flex items-center gap-3 text-gray-300">
+              <CheckCircle2 className="w-5 h-5 text-green-400" />
+              <span>Application mobile synchronisée</span>
+            </div>
           </div>
-        </div>
-
-        {/* Footer */}
-        <div className="relative text-blue-200 text-sm">
-          © 2025 EasyLog Pro. Tous droits réservés.
         </div>
       </div>
 
-      {/* Right Side - Login Form */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-gray-50">
+      {/* Colonne droite - Formulaire */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
         <div className="w-full max-w-md">
-          {/* Mobile Logo */}
-          <div className="lg:hidden flex items-center justify-center gap-3 mb-8">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
-              <Zap className="w-7 h-7 text-white" />
-            </div>
-            <span className="text-2xl font-bold text-gray-900">EasyLog Pro</span>
+          {/* Logo mobile */}
+          <div className="lg:hidden flex justify-center mb-8">
+            <AnimatedLogo />
           </div>
 
-          {/* Form Header */}
-          <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold text-gray-900">Connexion</h2>
-            <p className="text-gray-500 mt-2">Accédez à votre espace de gestion</p>
-          </div>
+          <h2 className="text-3xl font-bold text-white text-center mb-2">
+            {showForgotPassword ? 'Mot de passe oublié' : 'Connexion'}
+          </h2>
+          <p className="text-gray-400 text-center mb-8">
+            {showForgotPassword 
+              ? 'Entrez votre email pour recevoir un lien de réinitialisation'
+              : 'Accédez à votre espace Easy Sécurité'
+            }
+          </p>
 
-          {/* Error Message */}
+          {/* Message d'erreur */}
           {error && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-xl flex items-center gap-3 animate-shake">
-              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
-                <svg className="w-5 h-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </div>
-              <p className="text-red-700 text-sm font-medium">{error}</p>
+            <div className="bg-red-500/10 border border-red-500/50 rounded-lg p-4 mb-6 flex items-center gap-3">
+              <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0" />
+              <p className="text-red-400 text-sm">{error}</p>
             </div>
           )}
 
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Email */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Adresse email
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="votre@email.com"
-                  required
-                  className="
-                    w-full pl-12 pr-4 py-4
-                    bg-white border-2 border-gray-200
-                    rounded-xl text-gray-900
-                    placeholder-gray-400
-                    focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10
-                    transition-all duration-200
-                    focus:outline-none
-                  "
-                />
+          {/* Message de succès */}
+          {success && (
+            <div className="bg-green-500/10 border border-green-500/50 rounded-lg p-4 mb-6 flex items-center gap-3">
+              <CheckCircle2 className="w-5 h-5 text-green-400 flex-shrink-0" />
+              <p className="text-green-400 text-sm">{success}</p>
+            </div>
+          )}
+
+          {/* Formulaire */}
+          <form onSubmit={showForgotPassword ? handleForgotPassword : handleLogin}>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Email</label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    placeholder="vous@entreprise.fr"
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg py-3 px-10 text-white placeholder-gray-500 focus:outline-none focus:border-red-500 transition-colors"
+                  />
+                </div>
               </div>
+
+              {!showForgotPassword && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Mot de passe</label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      name="password"
+                      value={formData.password}
+                      onChange={handleChange}
+                      placeholder="••••••••"
+                      className="w-full bg-gray-800 border border-gray-700 rounded-lg py-3 px-10 text-white placeholder-gray-500 focus:outline-none focus:border-red-500 transition-colors"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                    >
+                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Password */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Mot de passe
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  required
-                  className="
-                    w-full pl-12 pr-12 py-4
-                    bg-white border-2 border-gray-200
-                    rounded-xl text-gray-900
-                    placeholder-gray-400
-                    focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10
-                    transition-all duration-200
-                    focus:outline-none
-                  "
-                />
+            {/* Mot de passe oublié */}
+            {!showForgotPassword && (
+              <div className="flex justify-end mt-4">
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                  onClick={() => setShowForgotPassword(true)}
+                  className="text-sm text-red-400 hover:text-red-300"
                 >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  Mot de passe oublié ?
                 </button>
               </div>
-            </div>
+            )}
 
-            {/* Remember & Forgot */}
-            <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input 
-                  type="checkbox" 
-                  className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                />
-                <span className="text-sm text-gray-600">Se souvenir de moi</span>
-              </label>
-              <a href="#" className="text-sm text-blue-600 font-medium hover:text-blue-700">
-                Mot de passe oublié ?
-              </a>
-            </div>
-
-            {/* Submit Button */}
+            {/* Bouton */}
             <button
               type="submit"
               disabled={loading}
-              className="
-                w-full py-4 px-6 
-                bg-gradient-to-r from-blue-500 to-indigo-600
-                hover:from-blue-600 hover:to-indigo-700
-                text-white font-semibold text-lg
-                rounded-xl
-                shadow-lg shadow-blue-500/30
-                hover:shadow-xl hover:shadow-blue-500/40
-                transform hover:-translate-y-0.5
-                transition-all duration-300
-                disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none
-                flex items-center justify-center gap-2
-              "
+              className="w-full mt-6 bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white py-3 rounded-lg font-bold transition-all shadow-lg shadow-red-500/25 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loading ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  Connexion en cours...
+                  {showForgotPassword ? 'Envoi...' : 'Connexion...'}
                 </>
+              ) : showForgotPassword ? (
+                'Envoyer le lien'
               ) : (
-                <>
-                  Se connecter
-                  <ArrowRight className="w-5 h-5" />
-                </>
+                'Se connecter'
               )}
             </button>
+
+            {/* Retour connexion */}
+            {showForgotPassword && (
+              <button
+                type="button"
+                onClick={() => {
+                  setShowForgotPassword(false);
+                  setError('');
+                  setSuccess('');
+                }}
+                className="w-full mt-4 text-gray-400 hover:text-white transition-colors"
+              >
+                ← Retour à la connexion
+              </button>
+            )}
           </form>
 
-          {/* Demo Info */}
-          <div className="mt-8 p-4 bg-blue-50 rounded-xl border border-blue-100">
-            <p className="text-sm text-blue-800 font-medium mb-1">🔐 Compte de démonstration</p>
-            <p className="text-xs text-blue-600">
-              Email: demo@easylog-pro.fr<br />
-              Mot de passe: demo123
+          {/* Lien inscription */}
+          {!showForgotPassword && (
+            <p className="text-center text-gray-400 mt-8">
+              Pas encore de compte ?{' '}
+              <Link to="/register" className="text-red-400 hover:text-red-300 font-medium">
+                Créer un compte
+              </Link>
             </p>
-          </div>
+          )}
 
-          {/* Footer */}
-          <p className="text-center text-gray-400 text-sm mt-8">
-            Besoin d'aide ?{' '}
-            <a href="#" className="text-blue-600 font-medium hover:text-blue-700">
-              Contactez le support
-            </a>
-          </p>
+          {/* Retour accueil */}
+          <div className="text-center mt-6">
+            <Link to="/" className="text-gray-500 hover:text-gray-300 text-sm">
+              ← Retour à l'accueil
+            </Link>
+          </div>
         </div>
       </div>
     </div>
