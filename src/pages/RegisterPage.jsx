@@ -1,7 +1,7 @@
 // src/pages/RegisterPage.jsx
 // Easy Sécurité - Page d'inscription
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { auth } from '../config/firebase';
 import { supabase } from '../config/supabase';
@@ -12,6 +12,12 @@ import {
 
 const RegisterPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  
+  // Récupérer les données du questionnaire (depuis LandingPage)
+  const questionnaireData = location.state?.questionnaireData || {};
+  const pricingData = location.state?.pricing || {};
+  
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -58,10 +64,20 @@ const RegisterPage = () => {
     return true;
   };
 
-  // Validation étape 2
+  // Validation étape 2 - MODIFIÉ: téléphone obligatoire 10 chiffres
   const validateStep2 = () => {
     if (!formData.prenom || !formData.nom) {
       setError('Le prénom et le nom sont obligatoires');
+      return false;
+    }
+    if (!formData.telephone) {
+      setError('Le téléphone est obligatoire');
+      return false;
+    }
+    // Nettoyer le téléphone (enlever espaces, tirets, points)
+    const telClean = formData.telephone.replace(/[\s\-\.]/g, '');
+    if (!/^\d{10}$/.test(telClean)) {
+      setError('Le téléphone doit contenir exactement 10 chiffres');
       return false;
     }
     return true;
@@ -76,12 +92,29 @@ const RegisterPage = () => {
     }
   };
 
-  // Inscription complète
+  // Inscription complète - MODIFIÉ: SIRET 14 chiffres + ville obligatoires
   const handleRegister = async (e) => {
     e.preventDefault();
     
     if (!formData.entreprise) {
       setError('Le nom de l\'entreprise est obligatoire');
+      return;
+    }
+
+    if (!formData.ville) {
+      setError('La ville est obligatoire');
+      return;
+    }
+
+    if (!formData.siret) {
+      setError('Le SIRET est obligatoire');
+      return;
+    }
+
+    // Nettoyer le SIRET (enlever espaces)
+    const siretClean = formData.siret.replace(/\s/g, '');
+    if (!/^\d{14}$/.test(siretClean)) {
+      setError('Le SIRET doit contenir exactement 14 chiffres');
       return;
     }
 
@@ -103,21 +136,34 @@ const RegisterPage = () => {
         displayName: `${formData.prenom} ${formData.nom}`
       });
 
-      // 3. Créer l'organisation dans Supabase
+      // DEBUG: Voir les données du questionnaire
+      console.log('=== DONNÉES QUESTIONNAIRE ===');
+      console.log('questionnaireData:', questionnaireData);
+      console.log('pricingData:', pricingData);
+      console.log('Modules demandés:', questionnaireData.modulesInteresses);
+
+      // 3. Créer l'organisation dans Supabase AVEC modules_actifs
+      const modulesActifs = questionnaireData.modulesInteresses || ['ssi'];
+      
       const { data: orgData, error: orgError } = await supabase
         .from('organisations')
         .insert({
           nom: formData.entreprise,
-          siret: formData.siret || null,
-          ville: formData.ville || null,
+          siret: siretClean,
+          ville: formData.ville,
           email: formData.email,
-          telephone: formData.telephone || null,
-          formule: 'starter'
+          telephone: formData.telephone.replace(/[\s\-\.]/g, ''),
+          formule: 'starter',
+          modules_actifs: modulesActifs
         })
         .select()
         .single();
 
-      if (orgError) throw orgError;
+      console.log('Organisation créée:', orgData);
+      if (orgError) {
+        console.error('Erreur création organisation:', orgError);
+        throw orgError;
+      }
 
       // 4. Créer l'utilisateur dans Supabase
       const { error: userError } = await supabase
@@ -128,13 +174,46 @@ const RegisterPage = () => {
           email: formData.email,
           nom: formData.nom,
           prenom: formData.prenom,
-          telephone: formData.telephone || null,
+          telephone: formData.telephone.replace(/[\s\-\.]/g, ''),
           role: 'admin'
         });
 
       if (userError) throw userError;
 
-      // 5. Rediriger vers le dashboard
+      // 5. Sauvegarder dans demandes_prospects (traçabilité)
+      console.log('=== SAUVEGARDE DEMANDE PROSPECT ===');
+      const prospectData = {
+        organisation_id: orgData.id,
+        email: formData.email,
+        telephone: formData.telephone.replace(/[\s\-\.]/g, ''),
+        prenom: formData.prenom,
+        nom: formData.nom,
+        entreprise: formData.entreprise,
+        siret: siretClean,
+        ville: formData.ville,
+        domaines_demandes: modulesActifs,
+        profil_demande: questionnaireData.typeActivite || 'mainteneur',
+        nb_utilisateurs: questionnaireData.nombreTechniciens || '1',
+        nb_sites: questionnaireData.nombreSites || null,
+        tarif_calcule: pricingData.finalPrice || pricingData.basePrice || 59.00,
+        options_selectionnees: pricingData.selectedAddons || [],
+        rapports_fournis: pricingData.availableReports || {},
+        source: 'landing_page'
+      };
+      console.log('Données à insérer:', prospectData);
+
+      const { data: insertedProspect, error: prospectError } = await supabase
+        .from('demandes_prospects')
+        .insert(prospectData)
+        .select();
+
+      if (prospectError) {
+        console.error('❌ ERREUR sauvegarde prospect:', prospectError);
+      } else {
+        console.log('✅ Prospect sauvegardé:', insertedProspect);
+      }
+
+      // 6. Rediriger vers le dashboard
       navigate('/dashboard');
 
     } catch (err) {
@@ -263,7 +342,7 @@ const RegisterPage = () => {
             {step === 1 && (
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Email</label>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Email <span className="text-red-400">*</span></label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input
@@ -278,7 +357,7 @@ const RegisterPage = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Mot de passe</label>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Mot de passe <span className="text-red-400">*</span></label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input
@@ -300,7 +379,7 @@ const RegisterPage = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Confirmer le mot de passe</label>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Confirmer le mot de passe <span className="text-red-400">*</span></label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input
@@ -321,7 +400,7 @@ const RegisterPage = () => {
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Prénom</label>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Prénom <span className="text-red-400">*</span></label>
                     <div className="relative">
                       <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                       <input
@@ -335,7 +414,7 @@ const RegisterPage = () => {
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Nom</label>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Nom <span className="text-red-400">*</span></label>
                     <div className="relative">
                       <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                       <input
@@ -351,7 +430,7 @@ const RegisterPage = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Téléphone <span className="text-gray-500">(optionnel)</span></label>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Téléphone <span className="text-red-400">*</span></label>
                   <div className="relative">
                     <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input
@@ -363,6 +442,7 @@ const RegisterPage = () => {
                       className="w-full bg-gray-800 border border-gray-700 rounded-lg py-3 px-10 text-white placeholder-gray-500 focus:outline-none focus:border-red-500 transition-colors"
                     />
                   </div>
+                  <p className="text-gray-500 text-xs mt-1">10 chiffres requis</p>
                 </div>
               </div>
             )}
@@ -371,7 +451,7 @@ const RegisterPage = () => {
             {step === 3 && (
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Nom de l'entreprise</label>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Nom de l'entreprise <span className="text-red-400">*</span></label>
                   <div className="relative">
                     <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input
@@ -386,7 +466,7 @@ const RegisterPage = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">SIRET <span className="text-gray-500">(optionnel)</span></label>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">SIRET <span className="text-red-400">*</span></label>
                   <input
                     type="text"
                     name="siret"
@@ -395,10 +475,11 @@ const RegisterPage = () => {
                     placeholder="123 456 789 00012"
                     className="w-full bg-gray-800 border border-gray-700 rounded-lg py-3 px-4 text-white placeholder-gray-500 focus:outline-none focus:border-red-500 transition-colors"
                   />
+                  <p className="text-gray-500 text-xs mt-1">14 chiffres requis</p>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Ville <span className="text-gray-500">(optionnel)</span></label>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Ville <span className="text-red-400">*</span></label>
                   <input
                     type="text"
                     name="ville"
