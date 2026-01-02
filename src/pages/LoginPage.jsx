@@ -1,15 +1,17 @@
 // src/pages/LoginPage.jsx
-// Easy Sécurité - Page de connexion
+// Easy Sécurité - Page de connexion SUPABASE
+
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
-import { auth } from '../config/firebase';
+import { useAuth } from '../contexts/AuthContext';
 import { 
   Flame, Mail, Lock, Eye, EyeOff, AlertCircle, Loader2, CheckCircle2
 } from 'lucide-react';
 
 const LoginPage = () => {
   const navigate = useNavigate();
+  const { signIn, resetPassword } = useAuth();
+  
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -40,22 +42,18 @@ const LoginPage = () => {
     setError('');
 
     try {
-      await signInWithEmailAndPassword(auth, formData.email, formData.password);
+      await signIn(formData.email, formData.password);
       navigate('/dashboard');
     } catch (err) {
       console.error('Erreur connexion:', err);
       
-      // Messages d'erreur Firebase traduits
-      if (err.code === 'auth/user-not-found') {
-        setError('Aucun compte trouvé avec cet email');
-      } else if (err.code === 'auth/wrong-password') {
-        setError('Mot de passe incorrect');
-      } else if (err.code === 'auth/invalid-email') {
-        setError('Email invalide');
-      } else if (err.code === 'auth/too-many-requests') {
-        setError('Trop de tentatives. Réessayez plus tard.');
-      } else if (err.code === 'auth/invalid-credential') {
+      // Messages d'erreur Supabase traduits
+      if (err.message?.includes('Invalid login credentials')) {
         setError('Email ou mot de passe incorrect');
+      } else if (err.message?.includes('Email not confirmed')) {
+        setError('Veuillez confirmer votre email avant de vous connecter');
+      } else if (err.message?.includes('Too many requests')) {
+        setError('Trop de tentatives. Réessayez plus tard.');
       } else {
         setError('Erreur de connexion. Vérifiez vos identifiants.');
       }
@@ -77,16 +75,12 @@ const LoginPage = () => {
     setError('');
 
     try {
-      await sendPasswordResetEmail(auth, formData.email);
+      await resetPassword(formData.email);
       setSuccess('Email de réinitialisation envoyé ! Vérifiez votre boîte mail.');
       setShowForgotPassword(false);
     } catch (err) {
       console.error('Erreur reset:', err);
-      if (err.code === 'auth/user-not-found') {
-        setError('Aucun compte trouvé avec cet email');
-      } else {
-        setError('Erreur lors de l\'envoi. Réessayez.');
-      }
+      setError('Erreur lors de l\'envoi. Réessayez.');
     } finally {
       setLoading(false);
     }
@@ -115,7 +109,6 @@ const LoginPage = () => {
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-900 to-black flex">
       {/* Colonne gauche - Branding */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
-        {/* Background effects */}
         <div className="absolute inset-0 bg-gradient-to-br from-red-900/30 via-transparent to-orange-900/30" />
         <div className="absolute top-20 left-10 w-72 h-72 bg-red-500/20 rounded-full blur-3xl animate-pulse" />
         <div className="absolute bottom-20 right-10 w-96 h-96 bg-orange-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
@@ -128,7 +121,7 @@ const LoginPage = () => {
           </h1>
           
           <p className="text-gray-400 text-lg mb-8">
-            Connectez-vous pour accéder à votre espace de gestion et retrouver tous vos clients, sites et interventions.
+            Connectez-vous pour accéder à votre espace de gestion.
           </p>
           
           <div className="space-y-4">

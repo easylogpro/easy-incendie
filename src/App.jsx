@@ -1,8 +1,8 @@
 // src/App.jsx
-// Easy Sécurité - Application principale V5
-
+// Easy Sécurité - Application principale V6
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { DemoProvider } from './contexts/DemoContext';
 
@@ -10,15 +10,18 @@ import { DemoProvider } from './contexts/DemoContext';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
-
-// Pages démo & abonnement
-import DemoPage from './pages/DemoPage';
-import DemoExpiredPage from './pages/DemoExpiredPage';
-import SubscriptionPage from './pages/SubscriptionPage';
+import CompleteProfilePage from './pages/CompleteProfilePage';
 
 // Pages protégées
 import DashboardPage from './pages/DashboardPage';
 import ClientsPage from './pages/ClientsPage';
+import SitesPage from './pages/SitesPage';
+import TechniciensPage from './pages/TechniciensPage';
+import InterventionsPage from './pages/InterventionsPage';
+import PlanningPage from './pages/PlanningPage';
+import DevisPage from './pages/DevisPage';
+import FacturesPage from './pages/FacturesPage';
+import AlertesPage from './pages/AlertesPage';
 import SettingsPage from './pages/SettingsPage';
 
 // Layout
@@ -29,9 +32,9 @@ import DemoBanner from './components/demo/DemoBanner';
 
 import './styles/index.css';
 
-// Route protégée
+// Route protégée - redirige vers complete-profile si profil incomplet
 const ProtectedRoute = ({ children }) => {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, needsProfile } = useAuth();
   
   if (loading) {
     return (
@@ -44,13 +47,18 @@ const ProtectedRoute = ({ children }) => {
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
+
+  // Si profil incomplet → complete-profile
+  if (needsProfile) {
+    return <Navigate to="/complete-profile" replace />;
+  }
   
   return children;
 };
 
-// Route publique
+// Route publique - redirige si déjà connecté
 const PublicRoute = ({ children }) => {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, needsProfile } = useAuth();
   
   if (loading) {
     return (
@@ -61,6 +69,34 @@ const PublicRoute = ({ children }) => {
   }
   
   if (isAuthenticated) {
+    // Si profil incomplet → complete-profile
+    if (needsProfile) {
+      return <Navigate to="/complete-profile" replace />;
+    }
+    return <Navigate to="/dashboard" replace />;
+  }
+  
+  return children;
+};
+
+// Route pour complete-profile - accessible seulement si connecté et profil incomplet
+const ProfileRoute = ({ children }) => {
+  const { isAuthenticated, loading, needsProfile } = useAuth();
+  
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-950">
+        <div className="w-16 h-16 border-4 border-red-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+  
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // Si profil déjà complet → dashboard
+  if (!needsProfile) {
     return <Navigate to="/dashboard" replace />;
   }
   
@@ -69,7 +105,7 @@ const PublicRoute = ({ children }) => {
 
 // Placeholder pour pages en développement
 const PlaceholderPage = ({ title }) => (
-  <div className="flex items-center justify-center h-96">
+  <div className="p-6 flex items-center justify-center h-96">
     <div className="text-center">
       <h2 className="text-2xl font-bold text-gray-900 mb-2">{title}</h2>
       <p className="text-gray-500">Module en cours de développement</p>
@@ -86,7 +122,19 @@ function App() {
     <AuthProvider>
       <DemoProvider>
         <Router>
-          {/* Bannière démo DANS le Router */}
+          {/* Toaster pour les notifications */}
+          <Toaster 
+            position="top-right"
+            toastOptions={{
+              duration: 4000,
+              style: {
+                background: '#1e293b',
+                color: '#f1f5f9',
+              },
+            }}
+          />
+          
+          {/* Bannière démo */}
           <DemoBanner />
           
           <Routes>
@@ -95,21 +143,23 @@ function App() {
             <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
             <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} />
             
-            {/* ROUTES DÉMO & ABONNEMENT */}
-            <Route path="/demo" element={<DemoPage />} />
-            <Route path="/demo-expired" element={<DemoExpiredPage />} />
-            <Route path="/subscribe" element={<SubscriptionPage />} />
+            {/* ROUTE COMPLETE PROFILE */}
+            <Route path="/complete-profile" element={<ProfileRoute><CompleteProfilePage /></ProfileRoute>} />
             
             {/* ROUTES PROTÉGÉES */}
             <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/clients" element={<ClientsPage />} />
-              <Route path="/sites" element={<PlaceholderPage title="Sites" />} />
-              <Route path="/equipements" element={<PlaceholderPage title="Équipements" />} />
-              <Route path="/planning" element={<PlaceholderPage title="Planning" />} />
-              <Route path="/interventions" element={<PlaceholderPage title="Interventions" />} />
-              <Route path="/devis" element={<PlaceholderPage title="Devis" />} />
-              <Route path="/factures" element={<PlaceholderPage title="Factures" />} />
+              <Route path="/sites" element={<SitesPage />} />
+              <Route path="/techniciens" element={<TechniciensPage />} />
+              <Route path="/planning" element={<PlanningPage />} />
+              <Route path="/interventions" element={<InterventionsPage />} />
+              <Route path="/devis" element={<DevisPage />} />
+              <Route path="/factures" element={<FacturesPage />} />
+              <Route path="/alertes" element={<AlertesPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
+              
+              {/* Routes rapports (placeholder) */}
               <Route path="/rapports" element={<PlaceholderPage title="Rapports" />} />
               <Route path="/rapports-ssi" element={<PlaceholderPage title="Rapports SSI" />} />
               <Route path="/rapports-dsf" element={<PlaceholderPage title="Rapports DSF" />} />
@@ -118,9 +168,8 @@ function App() {
               <Route path="/rapports-ria" element={<PlaceholderPage title="Rapports RIA" />} />
               <Route path="/rapports-colonnes-seches" element={<PlaceholderPage title="Rapports Colonnes Sèches" />} />
               <Route path="/registre-securite" element={<PlaceholderPage title="Registre Sécurité" />} />
-              <Route path="/techniciens" element={<PlaceholderPage title="Techniciens" />} />
               <Route path="/utilisateurs" element={<PlaceholderPage title="Utilisateurs" />} />
-              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/equipements" element={<PlaceholderPage title="Équipements" />} />
               <Route path="/export-comptable" element={<PlaceholderPage title="Export Comptable" />} />
             </Route>
             
