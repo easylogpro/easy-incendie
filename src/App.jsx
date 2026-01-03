@@ -11,6 +11,7 @@ import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import CompleteProfilePage from './pages/CompleteProfilePage';
+import AuthCallbackPage from './pages/AuthCallbackPage'; // ✅ AJOUT
 
 // Pages protégées
 import DashboardPage from './pages/DashboardPage';
@@ -35,7 +36,7 @@ import './styles/index.css';
 // Route protégée - redirige vers complete-profile si profil incomplet
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading, needsProfile } = useAuth();
-  
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-950">
@@ -43,7 +44,7 @@ const ProtectedRoute = ({ children }) => {
       </div>
     );
   }
-  
+
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
@@ -52,14 +53,14 @@ const ProtectedRoute = ({ children }) => {
   if (needsProfile) {
     return <Navigate to="/complete-profile" replace />;
   }
-  
+
   return children;
 };
 
 // Route publique - redirige si déjà connecté
 const PublicRoute = ({ children }) => {
   const { isAuthenticated, loading, needsProfile } = useAuth();
-  
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-950">
@@ -67,7 +68,7 @@ const PublicRoute = ({ children }) => {
       </div>
     );
   }
-  
+
   if (isAuthenticated) {
     // Si profil incomplet → complete-profile
     if (needsProfile) {
@@ -75,14 +76,14 @@ const PublicRoute = ({ children }) => {
     }
     return <Navigate to="/dashboard" replace />;
   }
-  
+
   return children;
 };
 
 // Route pour complete-profile - accessible seulement si connecté et profil incomplet
 const ProfileRoute = ({ children }) => {
   const { isAuthenticated, loading, needsProfile } = useAuth();
-  
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-950">
@@ -90,7 +91,7 @@ const ProfileRoute = ({ children }) => {
       </div>
     );
   }
-  
+
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
@@ -99,7 +100,7 @@ const ProfileRoute = ({ children }) => {
   if (!needsProfile) {
     return <Navigate to="/dashboard" replace />;
   }
-  
+
   return children;
 };
 
@@ -123,7 +124,7 @@ function App() {
       <DemoProvider>
         <Router>
           {/* Toaster pour les notifications */}
-          <Toaster 
+          <Toaster
             position="top-right"
             toastOptions={{
               duration: 4000,
@@ -133,19 +134,22 @@ function App() {
               },
             }}
           />
-          
+
           {/* Bannière démo */}
           <DemoBanner />
-          
+
           <Routes>
             {/* ROUTES PUBLIQUES */}
             <Route path="/" element={<PublicRoute><LandingPage /></PublicRoute>} />
             <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
             <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} />
-            
+
+            {/* ✅ ROUTE CALLBACK (obligatoire pour la confirmation email) */}
+            <Route path="/auth/callback" element={<AuthCallbackPage />} />
+
             {/* ROUTE COMPLETE PROFILE */}
             <Route path="/complete-profile" element={<ProfileRoute><CompleteProfilePage /></ProfileRoute>} />
-            
+
             {/* ROUTES PROTÉGÉES */}
             <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
               <Route path="/dashboard" element={<DashboardPage />} />
@@ -158,7 +162,7 @@ function App() {
               <Route path="/factures" element={<FacturesPage />} />
               <Route path="/alertes" element={<AlertesPage />} />
               <Route path="/settings" element={<SettingsPage />} />
-              
+
               {/* Routes rapports (placeholder) */}
               <Route path="/rapports" element={<PlaceholderPage title="Rapports" />} />
               <Route path="/rapports-ssi" element={<PlaceholderPage title="Rapports SSI" />} />
@@ -172,7 +176,7 @@ function App() {
               <Route path="/equipements" element={<PlaceholderPage title="Équipements" />} />
               <Route path="/export-comptable" element={<PlaceholderPage title="Export Comptable" />} />
             </Route>
-            
+
             {/* FALLBACK */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

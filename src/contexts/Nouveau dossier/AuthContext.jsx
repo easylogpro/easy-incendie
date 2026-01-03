@@ -37,6 +37,7 @@ export const AuthProvider = ({ children }) => {
       }
 
       if (!data) {
+        console.log('Profil incomplet - redirection nécessaire');
         setNeedsProfile(true);
         setUserData(null);
         setOrgSettings(null);
@@ -65,39 +66,44 @@ export const AuthProvider = ({ children }) => {
   };
 
   useEffect(() => {
-    let isSubscribed = true;
+    const initAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session?.user) {
+          setUser(session.user);
+          await loadUserData(session.user);
+        }
+      } catch (error) {
+        console.error('Erreur init auth:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth event:', event);
         
-        if (!isSubscribed) return;
-        
-        if (session?.user) {
+        if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
           setUser(session.user);
           await loadUserData(session.user);
-        } else {
+          setLoading(false);
+        } else if (event === 'SIGNED_OUT') {
           setUser(null);
           setUserData(null);
           setOrgSettings(null);
           setNeedsProfile(false);
+          setLoading(false);
+        } else if (event === 'TOKEN_REFRESHED' && session?.user) {
+          setUser(session.user);
         }
-        
-        setLoading(false);
       }
     );
 
-    // Vérifier si pas de session → loading false
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session && isSubscribed) {
-        setLoading(false);
-      }
-    });
-
-    return () => {
-      isSubscribed = false;
-      subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, []);
 
   const signUp = async (email, password, metadata = {}) => {

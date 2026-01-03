@@ -49,7 +49,8 @@ const RegisterPage = () => {
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/complete-profile`
+          emailRedirectTo: `${window.location.origin}/auth/callback`
+
         }
       });
 

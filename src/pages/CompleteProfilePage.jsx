@@ -1,17 +1,17 @@
 // src/pages/CompleteProfilePage.jsx
-// Étape 2 : Compléter le profil après confirmation email
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../config/supabase';
-import { 
+import {
   Flame, User, Building2, Phone, MapPin,
   AlertCircle, Loader2, CheckCircle2
 } from 'lucide-react';
 
 const CompleteProfilePage = () => {
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const { user, refreshUserData } = useAuth();
+
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -24,37 +24,6 @@ const CompleteProfilePage = () => {
     ville: ''
   });
 
-  // Vérifier que l'utilisateur est connecté
-  useEffect(() => {
-    const checkUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        // Pas connecté → retour login
-        navigate('/login');
-        return;
-      }
-
-      // Vérifier si déjà dans table utilisateurs
-      const { data: existingUser } = await supabase
-        .from('utilisateurs')
-        .select('id')
-        .eq('auth_id', user.id)
-        .single();
-
-      if (existingUser) {
-        // Profil déjà complet → dashboard
-        navigate('/dashboard');
-        return;
-      }
-
-      setUser(user);
-      setLoading(false);
-    };
-
-    checkUser();
-  }, [navigate]);
-
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
     setError('');
@@ -64,7 +33,6 @@ const CompleteProfilePage = () => {
     e.preventDefault();
     setError('');
 
-    // Validations
     if (!formData.prenom || !formData.nom) {
       setError('Le prénom et le nom sont obligatoires');
       return;
@@ -82,7 +50,7 @@ const CompleteProfilePage = () => {
     }
 
     if (!formData.entreprise) {
-      setError('Le nom de l\'entreprise est obligatoire');
+      setError("Le nom de l'entreprise est obligatoire");
       return;
     }
 
@@ -102,10 +70,14 @@ const CompleteProfilePage = () => {
       return;
     }
 
+    if (!user?.id) {
+      setError("Utilisateur non authentifié");
+      return;
+    }
+
     setSubmitting(true);
 
     try {
-      // 1. Créer l'organisation
       const { data: orgData, error: orgError } = await supabase
         .from('organisations')
         .insert({
@@ -119,11 +91,9 @@ const CompleteProfilePage = () => {
         .single();
 
       if (orgError) {
-        console.error('Erreur création organisation:', orgError);
-        throw new Error('Erreur lors de la création de l\'organisation');
+        throw new Error(orgError.message || "Erreur création organisation");
       }
 
-      // 2. Créer l'utilisateur
       const { error: userError } = await supabase
         .from('utilisateurs')
         .insert({
@@ -133,26 +103,32 @@ const CompleteProfilePage = () => {
           nom: formData.nom,
           prenom: formData.prenom,
           telephone: telClean,
-          role: 'admin'
+          role: 'admin',
+          actif: true
         });
 
       if (userError) {
-        console.error('Erreur création utilisateur:', userError);
-        throw new Error('Erreur lors de la création du profil');
+        throw new Error(userError.message || "Erreur création profil");
       }
 
-      // Succès → dashboard
+      await supabase
+        .from('onboarding_progress')
+        .insert({
+          organisation_id: orgData.id,
+          completed: false
+        });
+
+      await refreshUserData();
       navigate('/dashboard');
 
     } catch (err) {
-      console.error('Erreur:', err);
+      console.error('Erreur submit:', err);
       setError(err.message || 'Une erreur est survenue');
     } finally {
       setSubmitting(false);
     }
   };
 
-  // Logo
   const Logo = () => (
     <div className="flex items-center gap-2">
       <div className="relative">
@@ -169,14 +145,6 @@ const CompleteProfilePage = () => {
     </div>
   );
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-900 to-black flex items-center justify-center">
-        <Loader2 className="w-10 h-10 text-red-500 animate-spin" />
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-900 to-black flex items-center justify-center p-4">
       <div className="w-full max-w-lg">
@@ -184,7 +152,6 @@ const CompleteProfilePage = () => {
           <Logo />
         </div>
 
-        {/* Progress */}
         <div className="flex items-center justify-center gap-2 mb-8">
           <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center">
             <CheckCircle2 className="w-5 h-5 text-white" />
@@ -210,7 +177,6 @@ const CompleteProfilePage = () => {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Prénom / Nom */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -246,7 +212,6 @@ const CompleteProfilePage = () => {
             </div>
           </div>
 
-          {/* Téléphone */}
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
               Téléphone <span className="text-red-400">*</span>
@@ -265,7 +230,6 @@ const CompleteProfilePage = () => {
             <p className="text-gray-500 text-xs mt-1">10 chiffres</p>
           </div>
 
-          {/* Entreprise */}
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
               Nom de l'entreprise <span className="text-red-400">*</span>
@@ -283,7 +247,6 @@ const CompleteProfilePage = () => {
             </div>
           </div>
 
-          {/* SIRET */}
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
               SIRET <span className="text-red-400">*</span>
@@ -299,7 +262,6 @@ const CompleteProfilePage = () => {
             <p className="text-gray-500 text-xs mt-1">14 chiffres</p>
           </div>
 
-          {/* Ville */}
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
               Ville <span className="text-red-400">*</span>
@@ -317,7 +279,6 @@ const CompleteProfilePage = () => {
             </div>
           </div>
 
-          {/* Bouton */}
           <button
             type="submit"
             disabled={submitting}
@@ -329,7 +290,7 @@ const CompleteProfilePage = () => {
                 Création en cours...
               </>
             ) : (
-              'Terminer l\'inscription'
+              "Terminer l'inscription"
             )}
           </button>
         </form>
