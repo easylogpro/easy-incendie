@@ -9,7 +9,7 @@ import {
   FileText, X, ArrowRight, ArrowLeft 
 } from 'lucide-react';
 
-const OnboardingWizard = ({ onComplete }) => {
+const OnboardingWizard = ({ onComplete, onClose }) => {
   const { orgId, refreshUserData } = useAuth();
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -25,10 +25,12 @@ const OnboardingWizard = ({ onComplete }) => {
   const handleComplete = async () => {
     setLoading(true);
     try {
+      if (!orgId) throw new Error('organisation_id introuvable');
       await supabase
         .from('onboarding_progress')
         .upsert({
           organisation_id: orgId,
+          completed: true,
           onboarding_complete: true,
           completed_at: new Date().toISOString()
         });
@@ -61,7 +63,7 @@ const OnboardingWizard = ({ onComplete }) => {
               <p className="opacity-90">Configurons votre espace en quelques étapes</p>
             </div>
             <button 
-              onClick={onComplete}
+              onClick={onClose || onComplete}
               className="p-2 hover:bg-white/20 rounded-lg transition-colors"
             >
               <X className="w-6 h-6" />

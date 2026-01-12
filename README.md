@@ -27,7 +27,7 @@ Solution SaaS de gestion pour entreprises des secteurs énergie, chauffage, ince
 ## 🛠️ Stack Technique
 
 - **Frontend** : React 18, TailwindCSS, React Router
-- **Backend** : Firebase (Firestore, Auth, Storage, Functions)
+- **Backend** : Supabase (Postgres, Auth, Storage)
 - **Paiements** : Stripe
 - **PWA** : Mode hors-ligne pour techniciens terrain
 
@@ -35,7 +35,7 @@ Solution SaaS de gestion pour entreprises des secteurs énergie, chauffage, ince
 
 ### Prérequis
 - Node.js 18+
-- Compte Firebase
+- Compte Supabase
 - Compte Stripe (pour les paiements)
 
 ### Configuration
@@ -51,22 +51,22 @@ cd logiciel-energie-incendie
 npm install
 ```
 
-3. Configurer Firebase
+3. Configurer Supabase
 ```bash
 cp .env.example .env
-# Éditer .env avec vos clés Firebase
+# Éditer .env avec vos clés Supabase
 ```
 
 4. Démarrer en développement
 ```bash
-npm start
+npm run dev
 ```
 
 ## 🔐 Sécurité
 
 - Architecture multi-tenant avec isolation stricte des données
-- Règles Firestore par rôle
-- Authentification Firebase Auth
+- RLS (Row Level Security) sur Postgres
+- Authentification Supabase Auth
 - Audit log de toutes les actions
 - Conformité RGPD
 
@@ -78,7 +78,7 @@ src/
 │   ├── layout/         # Layout principal
 │   ├── ui/             # Composants UI (boutons, inputs...)
 │   └── ...
-├── config/             # Configuration Firebase
+├── config/             # Configuration Supabase
 ├── contexts/           # Contexts React (Auth...)
 ├── hooks/              # Hooks personnalisés
 ├── pages/              # Pages de l'application
@@ -89,20 +89,10 @@ src/
 
 ## 🚀 Déploiement
 
-### Firebase Hosting
+Build:
 ```bash
 npm run build
-firebase deploy
 ```
-
-### Déployer les règles Firestore
-```bash
-firebase deploy --only firestore:rules
-```
-
-## 📊 Architecture Firebase
-
-Voir `ARCHITECTURE_FIREBASE.md` pour la documentation complète de la structure de données.
 
 ## 🔄 Roadmap
 

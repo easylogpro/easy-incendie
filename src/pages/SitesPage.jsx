@@ -16,6 +16,7 @@ const SitesPage = () => {
   const { orgId } = useAuth();
   const [sites, setSites] = useState([]);
   const [clients, setClients] = useState([]);
+  const [techniciens, setTechniciens] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState('cards');
@@ -23,6 +24,7 @@ const SitesPage = () => {
   const [selectedSite, setSelectedSite] = useState(null);
   const [formData, setFormData] = useState({
     client_id: '',
+    technicien_id: '',
     nom: '',
     adresse: '',
     code_postal: '',
@@ -31,6 +33,7 @@ const SitesPage = () => {
     categorie_erp: '',
     contact_nom: '',
     contact_telephone: '',
+    contact_email: '',
     acces_instructions: '',
     domaines_actifs: []
   });
@@ -53,12 +56,26 @@ const SitesPage = () => {
   const loadData = async () => {
     if (!orgId) return;
     try {
-      const [sitesRes, clientsRes] = await Promise.all([
-        supabase.from('sites').select('*, clients(raison_sociale)').eq('organisation_id', orgId).order('nom'),
-        supabase.from('clients').select('id, raison_sociale').eq('organisation_id', orgId).order('raison_sociale')
+      const [sitesRes, clientsRes, techniciensRes] = await Promise.all([
+        supabase
+          .from('sites')
+          .select('*, clients(raison_sociale), techniciens(nom, prenom)')
+          .eq('organisation_id', orgId)
+          .order('nom'),
+        supabase
+          .from('clients')
+          .select('id, raison_sociale')
+          .eq('organisation_id', orgId)
+          .order('raison_sociale'),
+        supabase
+          .from('techniciens')
+          .select('id, nom, prenom')
+          .eq('organisation_id', orgId)
+          .order('nom'),
       ]);
       setSites(sitesRes.data || []);
       setClients(clientsRes.data || []);
+      setTechniciens(techniciensRes.data || []);
     } catch (error) {
       console.error('Erreur:', error);
     } finally {
@@ -73,7 +90,7 @@ const SitesPage = () => {
   );
 
   const openCreateModal = () => {
-    setFormData({ client_id: '', nom: '', adresse: '', code_postal: '', ville: '', type_erp: '', categorie_erp: '', contact_nom: '', contact_telephone: '', acces_instructions: '', domaines_actifs: [] });
+    setFormData({ client_id: '', technicien_id: '', nom: '', adresse: '', code_postal: '', ville: '', type_erp: '', categorie_erp: '', contact_nom: '', contact_telephone: '', contact_email: '', acces_instructions: '', domaines_actifs: [] });
     setModalMode('create');
   };
 
@@ -81,14 +98,16 @@ const SitesPage = () => {
     setSelectedSite(site);
     setFormData({
       client_id: site.client_id || '',
+      technicien_id: site.technicien_id || '',
       nom: site.nom || '',
       adresse: site.adresse || '',
       code_postal: site.code_postal || '',
       ville: site.ville || '',
       type_erp: site.type_erp || '',
-      categorie_erp: site.categorie_erp || '',
+      categorie_erp: site.categorie_erp?.toString?.() || '',
       contact_nom: site.contact_nom || '',
       contact_telephone: site.contact_telephone || '',
+      contact_email: site.contact_email || '',
       acces_instructions: site.acces_instructions || '',
       domaines_actifs: site.domaines_actifs || []
     });
@@ -97,10 +116,15 @@ const SitesPage = () => {
 
   const handleSave = async () => {
     try {
+      const payload = {
+        ...formData,
+        categorie_erp: formData.categorie_erp ? parseInt(formData.categorie_erp, 10) : null,
+      };
+
       if (modalMode === 'create') {
-        await supabase.from('sites').insert({ ...formData, organisation_id: orgId });
+        await supabase.from('sites').insert({ ...payload, organisation_id: orgId });
       } else {
-        await supabase.from('sites').update(formData).eq('id', selectedSite.id);
+        await supabase.from('sites').update(payload).eq('id', selectedSite.id);
       }
       setModalMode(null);
       loadData();
@@ -287,6 +311,15 @@ const SitesPage = () => {
             onChange={(e) => setFormData({...formData, client_id: e.target.value})}
             options={[{ value: '', label: 'Sélectionner un client' }, ...clients.map(c => ({ value: c.id, label: c.raison_sociale }))]}
           />
+          <Select
+            label="Technicien attribué"
+            value={formData.technicien_id}
+            onChange={(e) => setFormData({ ...formData, technicien_id: e.target.value })}
+            options={[
+              { value: '', label: '-' },
+              ...techniciens.map((t) => ({ value: t.id, label: `${t.prenom || ''} ${t.nom || ''}`.trim() })),
+            ]}
+          />
           <Input label="Nom du site *" value={formData.nom} onChange={(e) => setFormData({...formData, nom: e.target.value})} />
           <Input label="Adresse" value={formData.adresse} onChange={(e) => setFormData({...formData, adresse: e.target.value})} />
           <div className="grid grid-cols-2 gap-4">
@@ -311,6 +344,7 @@ const SitesPage = () => {
             <Input label="Contact sur site" value={formData.contact_nom} onChange={(e) => setFormData({...formData, contact_nom: e.target.value})} />
             <Input label="Téléphone contact" value={formData.contact_telephone} onChange={(e) => setFormData({...formData, contact_telephone: e.target.value})} />
           </div>
+          <Input label="Email contact" type="email" value={formData.contact_email} onChange={(e) => setFormData({ ...formData, contact_email: e.target.value })} />
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Domaines actifs</label>
             <div className="flex flex-wrap gap-2">

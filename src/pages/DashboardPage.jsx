@@ -96,11 +96,20 @@ const DashboardPage = () => {
 
   const checkOnboarding = async () => {
     try {
-      const { data } = await supabase.from("onboarding_progress").select("*").eq("organisation_id", orgId).single();
+      const { data, error } = await supabase
+        .from("onboarding_progress")
+        .select("*")
+        .eq("organisation_id", orgId)
+        .maybeSingle();
+
+      if (error) throw error;
 
       setOnboardingProgress(data);
-      if (!data || !data.completed) {
+      const isCompleted = !!(data?.completed || data?.onboarding_complete);
+      if (!isCompleted) {
         setShowOnboarding(true);
+      } else {
+        setShowOnboarding(false);
       }
     } catch (e) {
       setShowOnboarding(true);
@@ -379,7 +388,7 @@ const DashboardPage = () => {
       </div>
 
       {/* Onboarding progress (bannière) */}
-      {onboardingProgress && !onboardingProgress.completed && (
+      {onboardingProgress && !(onboardingProgress.completed || onboardingProgress.onboarding_complete) && (
         <div className="bg-gradient-to-r from-orange-50 to-red-50 border border-orange-200 rounded-xl p-6">
           <div className="flex items-center justify-between mb-4">
             <div>

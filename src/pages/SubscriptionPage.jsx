@@ -7,7 +7,7 @@ import {
   CreditCard, CheckCircle2, Shield, Zap, Lock, Users, Building2,
   Clock, AlertTriangle, ArrowRight, Loader2, Check
 } from 'lucide-react';
-import { supabase } from '../supabase';
+import { supabase } from '../config/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { computePricing } from '../utils/pricing';
 import { pricingData, availableAddons } from '../data/pricingData';

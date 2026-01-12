@@ -5,17 +5,22 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../config/supabase';
 import { Card, Button, Modal, Input, Select, Badge, EmptyState, Skeleton } from '../components/ui';
-import { UserCog, Plus, Search, Phone, Mail, Edit, Trash2, Calendar } from 'lucide-react';
+import { UserCog, Plus, Search, Mail, Edit, Trash2 } from 'lucide-react';
 
 const TechniciensPage = () => {
   const { orgId } = useAuth();
   const [techniciens, setTechniciens] = useState([]);
+  const [groupes, setGroupes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [modalMode, setModalMode] = useState(null);
   const [selectedTech, setSelectedTech] = useState(null);
   const [formData, setFormData] = useState({
-    nom: '', prenom: '', email: '', telephone: '', matricule: '', type_contrat: 'cdi', couleur_planning: '#3B82F6', actif: true
+    groupe_id: '',
+    matricule: '',
+    nom: '',
+    prenom: '',
+    email: '',
   });
 
   useEffect(() => { loadData(); }, [orgId]);
@@ -23,8 +28,15 @@ const TechniciensPage = () => {
   const loadData = async () => {
     if (!orgId) return;
     try {
-      const { data } = await supabase.from('techniciens').select('*').eq('organisation_id', orgId).order('nom');
-      setTechniciens(data || []);
+      const [techniciensRes, groupesRes] = await Promise.all([
+        supabase.from('techniciens').select('*, groupes(nom)').eq('organisation_id', orgId).order('nom'),
+        supabase.from('groupes').select('id, nom').eq('organisation_id', orgId).order('nom'),
+      ]);
+      if (techniciensRes.error) throw techniciensRes.error;
+      if (groupesRes.error) throw groupesRes.error;
+
+      setTechniciens(techniciensRes.data || []);
+      setGroupes(groupesRes.data || []);
     } catch (error) {
       console.error('Erreur:', error);
     } finally {
@@ -34,19 +46,24 @@ const TechniciensPage = () => {
 
   const filteredTechniciens = techniciens.filter(t =>
     t.nom?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    t.prenom?.toLowerCase().includes(searchTerm.toLowerCase())
+    t.prenom?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    t.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    t.matricule?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const openCreateModal = () => {
-    setFormData({ nom: '', prenom: '', email: '', telephone: '', matricule: '', type_contrat: 'cdi', couleur_planning: '#3B82F6', actif: true });
+    setFormData({ groupe_id: '', matricule: '', nom: '', prenom: '', email: '' });
     setModalMode('create');
   };
 
   const openEditModal = (tech) => {
     setSelectedTech(tech);
     setFormData({
-      nom: tech.nom || '', prenom: tech.prenom || '', email: tech.email || '', telephone: tech.telephone || '',
-      matricule: tech.matricule || '', type_contrat: tech.type_contrat || 'cdi', couleur_planning: tech.couleur_planning || '#3B82F6', actif: tech.actif
+      groupe_id: tech.groupe_id || '',
+      matricule: tech.matricule || '',
+      nom: tech.nom || '',
+      prenom: tech.prenom || '',
+      email: tech.email || '',
     });
     setModalMode('edit');
   };
@@ -54,9 +71,9 @@ const TechniciensPage = () => {
   const handleSave = async () => {
     try {
       if (modalMode === 'create') {
-        await supabase.from('techniciens').insert({ ...formData, organisation_id: orgId });
+        await supabase.from('techniciens').insert({ ...formData, organisation_id: orgId, groupe_id: formData.groupe_id || null });
       } else {
-        await supabase.from('techniciens').update(formData).eq('id', selectedTech.id);
+        await supabase.from('techniciens').update({ ...formData, groupe_id: formData.groupe_id || null }).eq('id', selectedTech.id);
       }
       setModalMode(null);
       loadData();
@@ -121,26 +138,17 @@ const TechniciensPage = () => {
               <div className="flex items-start gap-4">
                 <div
                   className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg"
-                  style={{ backgroundColor: tech.couleur_planning }}
+                  style={{ backgroundColor: '#3B82F6' }}
                 >
                   {tech.prenom?.[0]}{tech.nom?.[0]}
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <h3 className="font-semibold text-gray-900">{tech.prenom} {tech.nom}</h3>
-                    <Badge variant={tech.actif ? 'success' : 'default'} size="sm">
-                      {tech.actif ? 'Actif' : 'Inactif'}
-                    </Badge>
                   </div>
-                  <p className="text-sm text-gray-500">{tech.matricule || 'Sans matricule'}</p>
+                  <p className="text-sm text-gray-500">{tech.matricule || 'Sans matricule'}{tech.groupes?.nom ? ` • ${tech.groupes.nom}` : ''}</p>
                   
                   <div className="mt-3 space-y-1 text-sm text-gray-600">
-                    {tech.telephone && (
-                      <div className="flex items-center gap-2">
-                        <Phone className="w-4 h-4 text-gray-400" />
-                        <span>{tech.telephone}</span>
-                      </div>
-                    )}
                     {tech.email && (
                       <div className="flex items-center gap-2">
                         <Mail className="w-4 h-4 text-gray-400" />
@@ -171,30 +179,21 @@ const TechniciensPage = () => {
         }
       >
         <div className="space-y-4">
+          <Select
+            label="Groupe"
+            value={formData.groupe_id}
+            onChange={(e) => setFormData({ ...formData, groupe_id: e.target.value })}
+            options={[
+              { value: '', label: '-' },
+              ...groupes.map((g) => ({ value: g.id, label: g.nom })),
+            ]}
+          />
           <div className="grid grid-cols-2 gap-4">
             <Input label="Prénom *" value={formData.prenom} onChange={(e) => setFormData({...formData, prenom: e.target.value})} />
             <Input label="Nom *" value={formData.nom} onChange={(e) => setFormData({...formData, nom: e.target.value})} />
           </div>
-          <Input label="Téléphone *" value={formData.telephone} onChange={(e) => setFormData({...formData, telephone: e.target.value})} />
           <Input label="Email" type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} />
-          <div className="grid grid-cols-2 gap-4">
-            <Input label="Matricule" value={formData.matricule} onChange={(e) => setFormData({...formData, matricule: e.target.value})} />
-            <Select
-              label="Type contrat"
-              value={formData.type_contrat}
-              onChange={(e) => setFormData({...formData, type_contrat: e.target.value})}
-              options={[{ value: 'cdi', label: 'CDI' }, { value: 'cdd', label: 'CDD' }, { value: 'interim', label: 'Intérim' }]}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Couleur planning</label>
-            <input
-              type="color"
-              value={formData.couleur_planning}
-              onChange={(e) => setFormData({...formData, couleur_planning: e.target.value})}
-              className="w-full h-10 rounded-lg cursor-pointer"
-            />
-          </div>
+          <Input label="Matricule" value={formData.matricule} onChange={(e) => setFormData({...formData, matricule: e.target.value})} />
         </div>
       </Modal>
     </div>
