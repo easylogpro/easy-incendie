@@ -1,3 +1,7 @@
 {
+<<<<<<< HEAD
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+=======
+  "rewrites": [{ "source": "/(.*)", "destination": "/" }]
+>>>>>>> fce8a4c (Fix Vercel SPA rewrites (deep links))
 }
